@@ -1,30 +1,32 @@
 package com.example.releasemanager.service
 
+import com.example.releasemanager.controller.model.DeployDto
 import org.springframework.stereotype.Service
 
-@Service("classicReleaseManagerService")
-class ReleaseManagerService {
+@Service
+class ClassicReleaseManagerService : ReleaseManagerService {
 
-    private val systemMap: MutableMap<Int, Map<String, Int>> = HashMap()
-    private val currentServices: MutableMap<String, Int> = HashMap()
-    private var currentSystemVersion = 0
+    private val systemMap: MutableMap<Int, Map<String, Int>> = HashMap(mapOf(0 to mapOf()))
+    private var latestSystemVersion = 0
 
-    fun deploy(serviceName: String, serviceVersionNumber: Int): Int {
+    override fun deploy(deployDto: DeployDto): Int {
+        val (serviceName, serviceVersionNumber) = deployDto
+        val currentServices: Map<String, Int> = systemMap[latestSystemVersion]!!
         if (currentServices[serviceName] != serviceVersionNumber) {
             // prevent concurrent modification
-            synchronized(currentServices) {
+            synchronized(systemMap) {
                 // double-checking
                 if (currentServices[serviceName] != serviceVersionNumber) {
-                    currentSystemVersion++
-                    currentServices[serviceName] = serviceVersionNumber
-                    systemMap[currentSystemVersion] = HashMap(currentServices)
+                    val nextServices = HashMap(currentServices)
+                        .also { it[serviceName] = serviceVersionNumber }
+                    systemMap[++latestSystemVersion] = HashMap(nextServices)
                 }
             }
         }
-        return currentSystemVersion
+        return latestSystemVersion
     }
 
-    fun getServicesInfo(systemVersion: Int): Map<String, Int>? {
+    override fun getServices(systemVersion: Int): Map<String, Int>? {
         return systemMap[systemVersion]
     }
 

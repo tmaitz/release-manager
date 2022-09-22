@@ -1,31 +1,36 @@
 package com.example.releasemanager.service
 
+import com.example.releasemanager.controller.model.DeployDto
 import org.springframework.stereotype.Service
 
-@Service("classicReleaseManagerService")
-class ReleaseManagerService {
+@Service
+class ModernReleaseManagerService: ReleaseManagerService {
 
-    private val systemMap: MutableMap<Int, Map<String, Int>> = HashMap()
-    private val currentServices: MutableMap<String, Int> = HashMap()
-    private var currentSystemVersion = 0
+    private val versionToSystemMap: MutableMap<Int, Map<String, Int>> = HashMap(mapOf(0 to mapOf()))
+    private val systemToVersionMap: HashMap<Map<String, Int>, Int> = HashMap()
+    private var latestSystemVersion = 0
 
-    fun deploy(serviceName: String, serviceVersionNumber: Int): Int {
-        if (currentServices[serviceName] != serviceVersionNumber) {
+    override fun deploy(deployDto: DeployDto): Int {
+        val (serviceName, serviceVersionNumber) = deployDto
+        val currentServices = versionToSystemMap[latestSystemVersion]!!
+        val updatedServices: Map<String, Int> = HashMap(currentServices)
+            .also { it[serviceName] = serviceVersionNumber }
+        if (!systemToVersionMap.contains(updatedServices)) {
             // prevent concurrent modification
-            synchronized(currentServices) {
+            synchronized(systemToVersionMap) {
                 // double-checking
-                if (currentServices[serviceName] != serviceVersionNumber) {
-                    currentSystemVersion++
-                    currentServices[serviceName] = serviceVersionNumber
-                    systemMap[currentSystemVersion] = HashMap(currentServices)
+                if (!systemToVersionMap.contains(updatedServices)) {
+                    versionToSystemMap[++latestSystemVersion] = updatedServices
+                    systemToVersionMap[updatedServices] = latestSystemVersion
                 }
             }
         }
-        return currentSystemVersion
+        // else -> if this set of services has been encountered before -> just return previous version
+        return systemToVersionMap[updatedServices]!!
     }
 
-    fun getServicesInfo(systemVersion: Int): Map<String, Int>? {
-        return systemMap[systemVersion]
+    override fun getServices(systemVersion: Int): Map<String, Int>? {
+        return versionToSystemMap[systemVersion]
     }
 
 }
